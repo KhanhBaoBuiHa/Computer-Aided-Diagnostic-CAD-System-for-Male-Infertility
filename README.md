@@ -106,17 +106,6 @@ python inference.py --image_dir data/test/ --benchmark
 
 ---
 
-## Results vs Baseline
-
-| Metric | Our Model | Majority Vote | Random |
-|--------|-----------|--------------|--------|
-| **Task A — Accuracy** | — | — | — |
-| **Task A — F1** | — | — | — |
-| **Task B — Accuracy** | — | — | — |
-| **Task B — Macro F1** | — | — | — |
-
-> 📌 *Điền kết quả từ output của notebook.*
-
 ---
 
 ## Explainability — Grad-CAM
