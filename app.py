@@ -66,3 +66,5 @@ async def predict(file: UploadFile = File(...)):
         return result
     except Exception as e:
         raise HTTPException(500, str(e))
+    
+    # Log prediction + confidence vào CSV hoặc SQLite mỗi lần gọi API. Vẽ distribution chart
