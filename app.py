@@ -67,4 +67,66 @@ async def predict(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(500, str(e))
     
-    # Log prediction + confidence vào CSV hoặc SQLite mỗi lần gọi API. Vẽ distribution chart
+# Log prediction + confidence vào CSV hoặc SQLite mỗi lần gọi API
+from datetime import datetime
+
+DB_PATH = "predictions.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS predictions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            binary_label TEXT,
+            binary_conf REAL,
+            halo_label TEXT,
+            halo_conf REAL,
+            latency_ms REAL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def log_prediction(result: dict):
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "INSERT INTO predictions (timestamp, binary_label, binary_conf, halo_label, halo_conf, latency_ms) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            datetime.utcnow().isoformat(),
+            result["binary_label"],
+            result["binary_conf"],
+            result["halo_label"],
+            result.get("halo_conf"),
+            result["latency_ms"],
+        )
+    )
+    conn.commit()
+    conn.close()
+    
+@app.get("/stats")
+async def stats():
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+
+    cur.execute("SELECT COUNT(*) FROM predictions")
+    total = cur.fetchone()[0]
+
+    cur.execute("SELECT binary_label, COUNT(*) FROM predictions GROUP BY binary_label")
+    binary_dist = dict(cur.fetchall())
+
+    cur.execute("SELECT halo_label, COUNT(*) FROM predictions WHERE halo_label != 'N/A' GROUP BY halo_label")
+    halo_dist = dict(cur.fetchall())
+
+    cur.execute("SELECT AVG(latency_ms), AVG(binary_conf) FROM predictions")
+    avg_latency, avg_conf = cur.fetchone()
+
+    conn.close()
+    return {
+        "total_predictions": total,
+        "binary_distribution": binary_dist,
+        "halo_distribution": halo_dist,
+        "avg_latency_ms": round(avg_latency, 2) if avg_latency else None,
+        "avg_binary_confidence": round(avg_conf, 4) if avg_conf else None,
+    }
