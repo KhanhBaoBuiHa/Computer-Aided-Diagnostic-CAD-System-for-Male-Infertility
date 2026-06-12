@@ -1,0 +1,25 @@
+Chiến lược: làm 2 tầng song song
+Tầng 1 — Bosch CV (tuần 1): ONNX Export + Inference Benchmark
+Tại sao: Bosch là công ty embedded/hardware, đây là thứ họ care nhất và ít intern nào có. Implement trong 2–3 ngày, output rõ ràng.
+Việc cần làm:
+
+Export cả model_A và model_B sang ONNX
+Benchmark inference time: PyTorch vs ONNX vs (nếu có CPU Intel thì thử OpenVINO)
+Viết một script inference.py clean — input ảnh, output prediction + confidence + latency
+README có bảng so sánh latency rõ ràng
+
+Kết quả để CV: "Deployed CAD pipeline with ONNX export, achieving Xx speedup over baseline PyTorch inference" — câu này NTD Bosch đọc là hiểu ngay.
+
+Tầng 2 — Master's application (tuần 2): MLflow + Uncertainty
+Tại sao: Đây là thứ làm project trông như research-grade, không chỉ là coursework.
+Việc cần làm:
+
+Tích hợp MLflow tracking vào training loop hiện tại (loss, metrics, hyperparams, artifacts) — khoảng 1 ngày
+Thêm Monte Carlo Dropout cho Task B (halo classification) để có uncertainty score thay vì chỉ softmax confidence — khoảng 2 ngày
+Viết 1 đoạn ngắn trong README hoặc notebook giải thích tại sao uncertainty quan trọng trong medical imaging
+
+Kết quả cho SOP/application: project có XAI (Grad-CAM đã có) + uncertainty quantification + experiment tracking = đủ để kể thành một narrative research coherent.
+
+Thứ tự ưu tiên nếu thời gian bị cắt ngắn
+ONNX export > MLflow > MC Dropout > CI/CD (GitHub Actions cuối cùng, nice-to-have thôi).
+Bắt đầu với ONNX là ổn nhất vì: học trong 1 buổi, implement trong 1 ngày, impact trên CV cao nhất trên thời gian bỏ ra.
