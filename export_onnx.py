@@ -74,7 +74,7 @@ def build_multiclass_model(num_classes=4, pretrained=False, freeze_backbone=Fals
 # ======================================================
 
 def export_to_onnx(model, onnx_path, input_shape=(1, 3, 224, 224),
-                   opset_version=18, dynamic_batch=True):
+                   opset_version=17, dynamic_batch=True):
     """
     Export PyTorch model → ONNX.
 
@@ -105,7 +105,7 @@ def export_to_onnx(model, onnx_path, input_shape=(1, 3, 224, 224),
             dummy_input,
             onnx_path,
             export_params=True,
-            opset_version=18,  # opset 18 = min version supported by current torch.onnx dynamo path
+            opset_version=17,  # opset 17 = min version supported by current torch.onnx dynamo path
             do_constant_folding=True,       # fold constants → nhỏ hơn, nhanh hơn
             input_names=["input"],
             output_names=["output"],
