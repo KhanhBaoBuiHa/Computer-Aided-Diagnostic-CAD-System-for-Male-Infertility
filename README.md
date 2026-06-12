@@ -75,12 +75,12 @@ python inference.py --image_dir data/test/ --benchmark
 
 | Backend | Mean (ms) | Std (ms) | Min (ms) | Max (ms) | Throughput (FPS) |
 |---------|-----------|----------|----------|----------|-----------------|
-| **PyTorch (CPU)** | — | — | — | — | — |
-| **ONNX Runtime (CPU)** | — | — | — | — | — |
-| **Speedup** | **—x** | | | | |
+| **PyTorch (CPU)** | 219.11 | 41.13 | 177.94 | 347.96 | 4.6 |
+| **ONNX Runtime (CPU)** | 144.76 | 44.54 | 115.05 | 359.23 | 6.9 |
+| **Speedup** | **1.51x** | | | | |
 
-> 📌 *Điền kết quả sau khi chạy `export_onnx.py` trên máy của bạn.*  
-> ONNX thường nhanh hơn PyTorch CPU **1.5–3x** nhờ graph optimization và constant folding.
+
+> ONNX nhanh hơn PyTorch CPU **1.5** nhờ graph optimization và constant folding.
 
 ---
 
