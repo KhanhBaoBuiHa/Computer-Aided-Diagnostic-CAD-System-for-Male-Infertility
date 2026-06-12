@@ -1,6 +1,5 @@
 Chiến lược: làm 2 tầng song song
-Tầng 1 — Bosch CV (tuần 1): ONNX Export + Inference Benchmark
-Tại sao: Bosch là công ty embedded/hardware, đây là thứ họ care nhất và ít intern nào có. Implement trong 2–3 ngày, output rõ ràng.
+Tầng 1 ONNX Export + Inference Benchmark
 Việc cần làm:
 
 Export cả model_A và model_B sang ONNX
@@ -10,8 +9,7 @@ README có bảng so sánh latency rõ ràng
 
 Kết quả để CV: "Deployed CAD pipeline with ONNX export, achieving Xx speedup over baseline PyTorch inference" — câu này NTD Bosch đọc là hiểu ngay.
 
-Tầng 2 — Master's application (tuần 2): MLflow + Uncertainty
-Tại sao: Đây là thứ làm project trông như research-grade, không chỉ là coursework.
+Tầng 2  MLflow + Uncertainty
 Việc cần làm:
 
 Tích hợp MLflow tracking vào training loop hiện tại (loss, metrics, hyperparams, artifacts) — khoảng 1 ngày
