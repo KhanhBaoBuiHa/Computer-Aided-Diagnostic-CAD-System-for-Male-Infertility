@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 import numpy as np
 import cv2
 import os
-import anthropic
+import google.generativeai as genai
 
 from inference import (
     load_onnx_sessions, run_onnx, preprocess_image,
@@ -18,10 +18,8 @@ from gradcam_explain import load_pytorch_for_gradcam, run_gradcam_explain
 # Load models 1 lần khi server start, không load lại mỗi request
 sessions = {}
 
-# Khởi tạo Anthropic client 1 lần
-anthropic_client = anthropic.Anthropic(
-    api_key=os.environ.get("ANTHROPIC_API_KEY")
-)
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+gemini_model = genai.GenerativeModel("models/gemini-2.5-flash")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -83,6 +81,8 @@ async def predict(file: UploadFile = File(...)):
     
 # Log prediction + confidence vào CSV hoặc SQLite mỗi lần gọi API
 from datetime import datetime
+import time
+import sqlite3
 
 DB_PATH = "predictions.db"
 
@@ -163,7 +163,7 @@ async def explain(file: UploadFile = File(...)):
 @app.post("/report")
 async def generate_report(file: UploadFile = File(...)):
     """
-    Upload ảnh → chạy ONNX inference → Claude API generate clinical summary.
+    Upload ảnh → chạy ONNX inference → Gemini API generate clinical summary.
     
     Response bao gồm:
     - Kết quả model (binary + halo classification)
@@ -179,7 +179,7 @@ async def generate_report(file: UploadFile = File(...)):
         img_array = preprocess_bytes(img_bytes)
         result = run_onnx(sessions["A"], sessions["B"], img_array)
  
-        # Step 2: Build prompt cho Claude
+        # Step 2: Build prompt cho Gemini
         binary_label  = result["binary_label"]
         binary_conf   = result["binary_conf"]
         halo_label    = result.get("halo_label", "N/A")
@@ -201,20 +201,12 @@ Generate a concise clinical summary (3–4 sentences) that:
  
 Use professional medical language. Do NOT make a definitive diagnosis."""
  
-        # Step 3: Gọi Claude API
-        import time
+        # Step 3: Gọi gemini API
         llm_start = time.time()
-        
-        message = anthropic_client.messages.create(
-            model="claude-haiku-4-5-20251001",  # Haiku: nhanh + rẻ, đủ dùng cho clinical summary
-            max_tokens=300,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
-        
+        response = gemini_model.generate_content(prompt)
+
         llm_latency_ms = (time.time() - llm_start) * 1000
-        clinical_summary = message.content[0].text
+        clinical_summary = response.text
  
         # Step 4: Log vào DB (tái dụng hàm có sẵn)
         log_prediction(result)
@@ -229,11 +221,16 @@ Use professional medical language. Do NOT make a definitive diagnosis."""
             # LLM output
             "clinical_summary":   clinical_summary,
             "llm_latency_ms":     round(llm_latency_ms, 1),
-            "llm_model":          "claude-haiku-4-5-20251001",
+            "llm_model":          "gemini-2.5-flash",
         }
- 
-    except anthropic.APIError as e:
-        raise HTTPException(502, f"Claude API error: {str(e)}")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(502, f"Gemini API error: {str(e)}")
+
+    """
+    except Exception as e:
+        raise HTTPException(502, f"Gemini API error: {str(e)}")
     except Exception as e:
         raise HTTPException(500, str(e))
- 
+    """
