@@ -5,6 +5,8 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from contextlib import asynccontextmanager
 import numpy as np
 import cv2
+import os
+import anthropic
 
 from inference import (
     load_onnx_sessions, run_onnx, preprocess_image,
@@ -13,6 +15,11 @@ from inference import (
 
 # Load models 1 lần khi server start, không load lại mỗi request
 sessions = {}
+
+# Khởi tạo Anthropic client 1 lần
+anthropic_client = anthropic.Anthropic(
+    api_key=os.environ.get("ANTHROPIC_API_KEY")
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -130,3 +137,83 @@ async def stats():
         "avg_latency_ms": round(avg_latency, 2) if avg_latency else None,
         "avg_binary_confidence": round(avg_conf, 4) if avg_conf else None,
     }
+
+
+
+@app.post("/report")
+async def generate_report(file: UploadFile = File(...)):
+    """
+    Upload ảnh → chạy ONNX inference → Claude API generate clinical summary.
+    
+    Response bao gồm:
+    - Kết quả model (binary + halo classification)
+    - Clinical summary do LLM generate (tiếng Anh, tone bác sĩ)
+    - Latency breakdown (inference vs LLM)
+    """
+    if file.content_type not in ("image/png", "image/jpeg", "image/bmp"):
+        raise HTTPException(400, f"Unsupported file type: {file.content_type}")
+ 
+    try:
+        # Step 1: ONNX inference (tái dụng logic từ /predict)
+        img_bytes = await file.read()
+        img_array = preprocess_bytes(img_bytes)
+        result = run_onnx(sessions["A"], sessions["B"], img_array)
+ 
+        # Step 2: Build prompt cho Claude
+        binary_label  = result["binary_label"]
+        binary_conf   = result["binary_conf"]
+        halo_label    = result.get("halo_label", "N/A")
+        halo_conf     = result.get("halo_conf", 0.0)
+        latency_ms    = result["latency_ms"]
+ 
+        prompt = f"""You are a clinical assistant supporting andrologists in sperm morphology screening.
+ 
+A CAD system analyzed a microscopy image and returned the following results:
+- Task A (Binary Detection): {binary_label} — confidence {binary_conf:.1%}
+- Task B (Halo Morphology):  {halo_label} — confidence {halo_conf:.1%}
+- Inference latency: {latency_ms:.1f} ms
+ 
+Generate a concise clinical summary (3–4 sentences) that:
+1. States the detection outcome and confidence level
+2. Interprets the halo morphology class in clinical context (DNA fragmentation risk)
+3. Notes any low-confidence findings that may require manual review
+4. Ends with a recommended next step for the clinician
+ 
+Use professional medical language. Do NOT make a definitive diagnosis."""
+ 
+        # Step 3: Gọi Claude API
+        import time
+        llm_start = time.time()
+        
+        message = anthropic_client.messages.create(
+            model="claude-haiku-4-5-20251001",  # Haiku: nhanh + rẻ, đủ dùng cho clinical summary
+            max_tokens=300,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+        
+        llm_latency_ms = (time.time() - llm_start) * 1000
+        clinical_summary = message.content[0].text
+ 
+        # Step 4: Log vào DB (tái dụng hàm có sẵn)
+        log_prediction(result)
+ 
+        return {
+            # Model results
+            "binary_label":       binary_label,
+            "binary_conf":        binary_conf,
+            "halo_label":         halo_label,
+            "halo_conf":          halo_conf,
+            "inference_ms":       latency_ms,
+            # LLM output
+            "clinical_summary":   clinical_summary,
+            "llm_latency_ms":     round(llm_latency_ms, 1),
+            "llm_model":          "claude-haiku-4-5-20251001",
+        }
+ 
+    except anthropic.APIError as e:
+        raise HTTPException(502, f"Claude API error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
