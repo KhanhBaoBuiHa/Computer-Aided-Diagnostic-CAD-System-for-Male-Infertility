@@ -13,6 +13,8 @@ from inference import (
     IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD
 )
 
+from gradcam_explain import load_pytorch_for_gradcam, run_gradcam_explain
+
 # Load models 1 lần khi server start, không load lại mỗi request
 sessions = {}
 
@@ -28,6 +30,11 @@ async def lifespan(app: FastAPI):
         "onnx_models/multiclass_efficientnet_b0.onnx"
     )
     sessions["A"], sessions["B"] = sess_A, sess_B
+
+    load_pytorch_for_gradcam(
+        "checkpoints/binary_best.pth",
+        "checkpoints/multiclass_best.pth"
+    )
     yield
     sessions.clear()
 
@@ -138,6 +145,19 @@ async def stats():
         "avg_binary_confidence": round(avg_conf, 4) if avg_conf else None,
     }
 
+@app.post("/explain")
+async def explain(file: UploadFile = File(...)):
+    """
+    Upload ảnh → Grad-CAM heatmap overlay cho cả Task A và Task B.
+    Response chứa base64-encoded PNG cho từng task.
+    """
+    if file.content_type not in ("image/png", "image/jpeg", "image/bmp"):
+        raise HTTPException(400, f"Unsupported: {file.content_type}")
+    try:
+        img_bytes = await file.read()
+        return run_gradcam_explain(img_bytes)
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 @app.post("/report")
